@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Multi-Digit MNIST (Mobile Fix)</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.18.0/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/cv-analytics@0.9.6/dist/cv-analytics.min.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <style>
+        body {
+            margin: 0;
+            padding: 10px;
+            touch-action: none; /* Penting untuk prevent scroll saat menggambar */
+        }
+        canvas {
+            display: block;
+            background: white;
+            touch-action: none; /* Nonaktifkan gesture browser */
+            /* Tambahkan border di sini */
+            border: 2px solid #333; /* Contoh: border abu-abu gelap setebal 2px */
+            box-sizing: border-box; /* Pastikan border tidak menambah ukuran elemen */
+        }
+    </style>
+</head>
+<body>
+    <h1>Draw Multiple Digits</h1>
+    <canvas id="canvas" width="300" height="200"></canvas>
+    <br>
+    <button onclick="predict()">Predict</button>
+    <button onclick="clearCanvas()">Clear</button>
+    <div id="result" style="font-size: 24px;"></div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        let isDrawing = false;
+        let lastX = 0;
+        let lastY = 0;
+        let model;
+
+        // Optimasi ukuran canvas untuk mobile
+        function resizeCanvas() {
+            const width = Math.min(300, window.innerWidth - 20);
+            canvas.width = width;
+            canvas.height = width * 0.66; // Aspect ratio 3:2
+        }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+
+        // Load model
+        async function loadModel() {
+            model = await tf.loadLayersModel('https://storage.googleapis.com/tfjs-models/tfjs/mnist_cnn/model.json');
+            console.log("Model loaded!");
+        }
+        loadModel();
+
+        // Fungsi gambar (support mouse & touch)
+        function startDrawing(e) {
+            isDrawing = true;
+            [lastX, lastY] = getPosition(e);
+        }
+
+        function draw(e) {
+            if (!isDrawing) return;
+            
+            ctx.lineWidth = 15;
+            ctx.lineCap = 'round';
+            ctx.strokeStyle = 'black';
+            
+            const [x, y] = getPosition(e);
+            
+            ctx.beginPath();
+            ctx.moveTo(lastX, lastY);
+            ctx.lineTo(x, y);
+            ctx.stroke();
+            
+            [lastX, lastY] = [x, y];
+        }
+
+        function stopDrawing() {
+            isDrawing = false;
+        }
+
+        // Handle posisi (untuk touch/mouse)
+        function getPosition(e) {
+            let x, y;
+            if (e.touches) {
+                const rect = canvas.getBoundingClientRect();
+                x = e.touches[0].clientX - rect.left;
+                y = e.touches[0].clientY - rect.top;
+            } else {
+                x = e.offsetX;
+                y = e.offsetY;
+            }
+            return [x, y];
+        }
+
+        // Event listeners untuk desktop & mobile
+        canvas.addEventListener('mousedown', startDrawing);
+        canvas.addEventListener('mousemove', draw);
+        canvas.addEventListener('mouseup', stopDrawing);
+        canvas.addEventListener('mouseout', stopDrawing);
+        
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault(); // Penting untuk mobile!
+            startDrawing(e);
+        });
+        canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            draw(e);
+        });
+        canvas.addEventListener('touchend', stopDrawing);
+
+        // Fungsi clear dan predict (sama seperti sebelumnya)
+        function clearCanvas() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            document.getElementById('result').innerText = '';
+        }
+
+        async function predict() {
+            if (!model) return alert("Model belum loaded!");
+            
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const components = await cvAnalytics.connectedComponents(imageData, {
+                minPixels: 50,
+                maxComponents: 10
+            });
+
+            if (components.length === 0) return alert("No digits detected!");
+
+            let predictions = [];
+            for (const comp of components) {
+                const digitTensor = tf.tidy(() => {
+                    return tf.browser.fromPixels(comp.image)
+                        .resizeNearestNeighbor([28, 28])
+                        .mean(2)
+                        .expandDims(2)
+                        .expandDims()
+                        .toFloat()
+                        .div(255.0);
+                });
+
+                const pred = await model.predict(digitTensor).data();
+                predictions.push(tf.argMax(pred).dataSync()[0]);
+                digitTensor.dispose();
+            }
+
+            document.getElementById('result').innerText = 
+                `Predicted: ${predictions.join(' ')}`;
+        }
+    </script>
+</body>
+</html>
