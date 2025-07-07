@@ -46,10 +46,15 @@
         resizeCanvas();
         window.addEventListener('resize', resizeCanvas);
 
-        // Load model
+        // Load model dengan penanganan error
         async function loadModel() {
-            model = await tf.loadLayersModel('https://storage.googleapis.com/tfjs-models/tfjs/mnist_cnn/model.json');
-            console.log("Model loaded!");
+            try {
+                model = await tf.loadLayersModel('https://storage.googleapis.com/tfjs-models/tfjs/mnist_cnn/model.json');
+                console.log("Model loaded successfully!");
+            } catch (error) {
+                console.error("Error loading the model:", error);
+                alert("Gagal memuat model. Silakan coba refresh halaman atau periksa koneksi internet Anda.");
+            }
         }
         loadModel();
 
@@ -117,7 +122,11 @@
         }
 
         async function predict() {
-            if (!model) return alert("Model belum loaded!");
+            // Pastikan model sudah dimuat sebelum melakukan prediksi
+            if (!model) {
+                alert("Model belum dimuat. Mohon tunggu atau periksa koneksi internet Anda.");
+                return;
+            }
             
             const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
             const components = await cvAnalytics.connectedComponents(imageData, {
@@ -125,7 +134,7 @@
                 maxComponents: 10
             });
 
-            if (components.length === 0) return alert("No digits detected!");
+            if (components.length === 0) return alert("Tidak ada digit terdeteksi!");
 
             let predictions = [];
             for (const comp of components) {
@@ -145,7 +154,7 @@
             }
 
             document.getElementById('result').innerText = 
-                `Predicted: ${predictions.join(' ')}`;
+                `Prediksi: ${predictions.join(' ')}`;
         }
     </script>
 </body>
