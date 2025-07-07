@@ -46,14 +46,16 @@
         resizeCanvas();
         window.addEventListener('resize', resizeCanvas);
 
-        // Load model dengan penanganan error
+        // Load model dengan penanganan error yang lebih detail
         async function loadModel() {
             try {
-                model = await tf.loadLayersModel('https://storage.googleapis.com/tfjs-models/tfjs/mnist_cnn/model.json');
-                console.log("Model loaded successfully!");
+                model = await tf.loadLayersModel('./model/model.json');
+                console.log("Model loaded successfully from local!");
             } catch (error) {
                 console.error("Error loading the model:", error);
-                alert("Gagal memuat model. Silakan coba refresh halaman atau periksa koneksi internet Anda.");
+                // Coba log error dalam bentuk string JSON untuk detail lebih lanjut
+                console.error("Full error object:", JSON.stringify(error, Object.getOwnPropertyNames(error)));
+                alert("Gagal memuat model dari lokal. Pastikan file 'model.json' dan file '.bin' ada di folder './model/' dan tidak rusak. Detail error ada di konsol browser.");
             }
         }
         loadModel();
